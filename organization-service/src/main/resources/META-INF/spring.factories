@@ -1,0 +1,5 @@
+#Definizione di BEans che vanno nell application context
+org.springframework.boot.autoconfigure.EnableAutoConfiguration = SpringAppContextConfig
+
+#Definizione di BEans che vanno nel bootstrap context
+org.springframework.cloud.bootstrap.BootstrapConfiguration= SpringBootContextConfig

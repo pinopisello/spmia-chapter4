@@ -1,0 +1,98 @@
+SpringBoot service che si registra in EurekaServer a  http://localhost:8761/eureka/ come "organizationservice"
+
+Configurazione:
+
+bootstrap.yml => 
+
+spring:
+  application:
+    name: organizationservice    definisce ID applicazione.Viene inviato a Eureka 
+  datasource:
+    initialize: true			 runna schema.sql ad ogni boostrap
+  profiles:
+    active:
+      prod                       profilo x properties: prod
+  cloud:
+    config:
+      enabled: true              abilita properties download da un remote  config server   (vedi ConfigServiceBootstrapConfiguration.java)
+      							 Nota uri :http://localhost:8888 non e' specificato ergo prende default http://localhost:8888 .Vedi ConfigClientProperties.java.s
+      							
+
+            
+application.yml => 
+eureka:
+    instance:
+        preferIpAddress: true       #Registra istaza via IP invece che hostname
+  client:
+    registerWithEureka: true    #Registra il service presso Eureka
+    fetchRegistry: true         #Scarica localmente il registry da Eureka ogni 30 secs anziche' richiedere resolution ad ogni request ...
+    serviceUrl:
+        defaultZone: http://localhost:8761/eureka/  #Eureka service endpoint  per service resolution/registration
+        
+
+
+
+####################			Registrazione organization service			####################
+[http://localhost:8761/eureka/apps/organizationservice]
+
+#Application.java e' annotata @EnableEurekaClient.  EnableEurekaClient e' a sua volta annotato @EnableDiscoveryClient.
+#EnableDiscoveryClient @Import(EnableDiscoveryClientImportSelector.class)
+
+spring-cloud-netflix-eureka-client/META-INF/spring-factories definisce EurekaClientAutoConfiguration
+
+In essa :
+
+========   Eureka instance config:   =============
+
+		
+@ConfigurationProperties("eureka.instance")
+public class EurekaInstanceConfigBean implements CloudEurekaInstanceConfig, EnvironmentAware {
+
+EurekaInstanceConfigBean riceve preferIpAddress: true  da application.yml
+
+
+========   Eureka Client config:   =============
+
+	@ConfigurationProperties("eureka.client")
+    public class EurekaClientConfigBean implements EurekaClientConfig, EurekaConstants 
+	
+EurekaClientConfigBean riceve registerWithEureka,fetchRegistry,serviceUrl  da application.yml
+
+CloudEurekaClient extends DiscoveryClient e' la classe che attualmente si interfaccia all eureka server.
+
+DiscoveryClient prende la configurazione per eureka endpoints,network parameters, etc da EurekaClientConfigBean che e' annotato da @ConfigurationProperties("eureka.client")
+
+Il codice ignora i proxyHost e proxyPort anche se sono iniettati in EurekaClientConfigBean.
+Per risolvere ho crato SpringConfig.java annotata @Configuration e creato un META-INF/spring.factories con una entry 
+org.springframework.boot.autoconfigure.EnableAutoConfiguration = SpringConfig in modo da generare EurekaJerseyClient con proxy settati correttamente.
+
+La prima request verso il configserver e' GET http://localhost:8761/eureka/apps/ : DiscoveryClient.fetchRegistry
+
+
+dopodiche  3 ThreadPoolExecutors vengono inizializzati per polling [initScheduledTasks()]:
+
+
+		CacheRefreshThread [registryFetchIntervalSeconds,fetchRegistry,cacheRefreshExecutorExponentialBackOffBound]        							GET  http://localhost:8761/eureka/apps/
+        HeartbeatThread    [registerWithEureka,leaseRenewalIntervalInSeconds,heartbeatExecutorExponentialBackOffBound]      					    PUT  http://localhost:8761/eureka/apps/ORGANIZATIONSERVICE/192.168.0.4:organizationservice?status=STARTING&lastDirtyTimestamp=1493390403151        
+        InstanceInfoReplicator [instanceInfoReplicationIntervalSeconds]  invoca  discoveryClient.register() sse instanceInfo.isInstanceInfoDirty()  POST http://localhost:8761/eureka/apps/ORGANIZATIONSERVICE
+        ApplicationInfoManager.statusChangeListener .Quando lo status dell app cambia, invoca  instanceInfoReplicator.onDemandUpdate()  			POST http://localhost:8761/eureka/apps/ORGANIZATIONSERVICE
+
+
+		
+
+###################				Invocazione servizio						#####################
+[http://localhost:8080/v1/organizations/e254f8c-c442-4ebe-a82a-e2fc1d1ff78as]
+
+
+Viene invocato OrganizationServiceController.Nulla di particolare.
+
+
+
+
+
+
+
+
+       
+        
+        

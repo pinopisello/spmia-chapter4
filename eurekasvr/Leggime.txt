@@ -1,0 +1,35 @@
+Service discovery implementato usando Netflix Eureka.
+Nel pom , <artifactId>spring-cloud-starter-eureka-server</artifactId>!!
+
+
+Esempio necessita di:
+
+organization-service_chapter4 => che si registra in eureka
+configurationserver_chapter3  => usato da organization-service_chapter4 per connettersi al DB
+
+
+
+
+
+Sempre una SpringBoot application startata da EurekaServerApplication che e' annotata da:
+
+@SpringBootApplication  => triggera spring boot con apache/getty, setup di webmvc e dispatcher servlet
+ 
+@EnableEurekaServer  => @Import(EurekaServerConfiguration.class)  => @Import(EurekaServerInitializerConfiguration.class)  
+					EurekaServerInitializerConfiguration ha un thread che : invia servletContext a eurekaServerBootstrap
+																			pesca eureka config publish(new EurekaRegistryAvailableEvent(getEurekaServerConfig()));
+
+
+application.yml configura eureka server:
+        eureka:
+		  client:
+		    registerWithEureka: false
+		    fetchRegistry: false
+		  server:
+		    waitTimeInMsWhenSyncEmpty: 5
+		  serviceUrl:
+		    defaultZone: http://localhost:8761
+
+
+
+

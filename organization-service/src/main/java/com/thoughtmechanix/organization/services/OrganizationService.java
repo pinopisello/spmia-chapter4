@@ -13,7 +13,9 @@ public class OrganizationService {
     private OrganizationRepository orgRepository;
 
     public Organization getOrg(String organizationId) {
-        return orgRepository.findById(organizationId);
+    	Organization out = orgRepository.findById(organizationId);
+        
+        return out;
     }
 
     public void saveOrg(Organization org){

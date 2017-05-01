@@ -1,0 +1,21 @@
+SpringBoot service che si registra in EurekaServer a  http://localhost:8761/eureka/ come "licensingservice"
+
+Espone :
+
+   @RequestMapping(value="/{licenseId}/{clientType}",method = RequestMethod.GET)
+    public License getLicensesWithClient( @PathVariable("organizationId") String organizationId,
+                                          @PathVariable("licenseId") String licenseId,
+                                          @PathVariable("clientType") String clientType) {
+
+        return licenseService.getLicense(organizationId,licenseId, clientType);
+    }
+    
+ Dipendentemente dal clientType, organizationservice viene invocato usando:
+ 
+	• discovery. Uses the discovery client and a standard Spring RestTemplate class to invoke the organization service.
+	• rest. Uses an enhanced Spring RestTemplate to invoke the Ribbon Based service.
+	• feign. Uses Netflix’s Feign Client library to invoke a service via Ribbon.
+ 
+
+
+

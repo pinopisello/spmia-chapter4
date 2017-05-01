@@ -4,10 +4,10 @@ server:
 
 eureka:
   client:
-    registerWithEureka: false
-    fetchRegistry: false
+    registerWithEureka: false  #non registrare il client presso eureka
+    fetchRegistry: false       #non cachare registry in locale
   server:
-    waitTimeInMsWhenSyncEmpty: 5
+    waitTimeInMsWhenSyncEmpty: 5  #tempo tra quando un service si registra e quando viene reso available (cosi puo finire inizializzazione).
   serviceUrl:
     defaultZone: http://localhost:8761
   

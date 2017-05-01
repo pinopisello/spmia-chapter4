@@ -1,11 +1,18 @@
-
 eureka:
   instance:
-    preferIpAddress: true
+    preferIpAddress: true       #Registra istaza via IP invece che hostname
+    leaseRenewalIntervalInSeconds: 110 #periodo tra una registrazione e l altra del client verso server
+    
   client:
-    registerWithEureka: true
-    fetchRegistry: true
+    proxyHost: 127.0.0.1         #Utile per tracciare chiamate con Charles
+    proxyPort: 9999              #Utile per tracciare chiamate con Charles
+    registerWithEureka: true     #Se il client deve registrare l app presso eureka server
+    fetchRegistry: true          #Scarica localmente il registry da Eureka ogni 30 secs anziche' richiedere resolution ad ogni request ...
+    registryFetchIntervalSeconds: 60                #ogni quanti secondi eureka client scarica il full registry da eureka server
+    cacheRefreshExecutorExponentialBackOffBound: 20 #come le registry retries sono spaziate nel tempo (exp)
+    heartbeatExecutorExponentialBackOffBound: 24    #come le hartbeat retries sono spaziate nel tempo (exp)
+    instanceInfoReplicationIntervalSeconds: 666
     serviceUrl:
-        defaultZone: http://localhost:8761/eureka/
-
-        
+        defaultZone: http://localhost:8761/eureka/  #Eureka service endpoint  
+    onDemandUpdateStatusChange: true
+       
