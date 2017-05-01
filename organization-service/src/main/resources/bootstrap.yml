@@ -1,9 +1,13 @@
 spring:
   application:
     name: organizationservice
+  datasource:
+    initialize: false   #runna schema.sql ad ogni boostrap
   profiles:
-    active:
-      default
+    active: prod       #seleziona quale pro file perscare dal config server
   cloud:
     config:
-      enabled: true
+      enabled: false              #vedi setProxy_configserver.txt   
+      uri: http://localhost:8888  #Nota uri :http://localhost:8888 non e' specificato ergo prende default http://localhost:8888 .Vedi ConfigClientProperties.java.
+server:
+  port: 8080

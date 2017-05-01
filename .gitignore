@@ -5,7 +5,7 @@
 .classpath
 .project
 .settings/
-
+.metadata
 # Intellij project files
 *.iml
 *.ipr
