@@ -30,8 +30,6 @@ import org.springframework.web.client.RestTemplate;
        @Autowired
        ConfigClientProperties configClientProperties;
 
-       
-       
        @Primary
        @Bean
        public ConfigServicePropertySourceLocator configServicePropertySourceLocator() {
