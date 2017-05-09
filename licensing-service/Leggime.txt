@@ -1,6 +1,7 @@
 SpringBoot service che si registra in EurekaServer a  http://localhost:8761/eureka/ come "licensingservice"
+Server aperto su porta 8081 dato che 8080 e'usata da organizationservice!!
 
-Espone :
+LicenseServiceController espone :
 
    @RequestMapping(value="/{licenseId}/{clientType}",method = RequestMethod.GET)
     public License getLicensesWithClient( @PathVariable("organizationId") String organizationId,
@@ -12,10 +13,215 @@ Espone :
     
  Dipendentemente dal clientType, organizationservice viene invocato usando:
  
-	• discovery. Uses the discovery client and a standard Spring RestTemplate class to invoke the organization service.
-	• rest. Uses an enhanced Spring RestTemplate to invoke the Ribbon Based service.
-	• feign. Uses Netflix’s Feign Client library to invoke a service via Ribbon.
+	• discovery. Uses the discovery client and a standard Spring RestTemplate class to invoke the organization service. [low level]
+	• rest. Uses an enhanced Spring RestTemplate to invoke the Ribbon Based service with load balancer [med level]
+	• feign. Uses Netflix’s Feign Client library to invoke a service via Ribbon.[hogh level]
+
+
+##########################   Discovery client #######################
+http://localhost:8081/v1/organizations/442adb6e-fa58-47f3-9ca2-ed1fecdfe86c/licenses/38777179-7094-4200-9d61-edb101c6ea84/discovery
+
+OrganizationDiscoveryClient usa EurekaDiscoveryClient per ripescare instanze attive di organizationservice dopodiche, trovato ip e porta,  usa un RestTemplate per invocare il servizio.
+No loadbalancing (non di default almeno...) .
+
+OrganizationDiscoveryClient.getOrganization("organizationservice") =>  EurekaDiscoveryClient.getInstances("organizationservice") => CloudEurekaClient.getInstancesByVipAddress("organizationservice") => DiscoveryClient.getInstancesByVipAddress("organizationservice") =>  DiscoveryClient.localRegionApps.get()
+
+Ergo gli attributi eureka dell' app   "organizationservice" sono storati in DiscoveryClient.localRegionApps e sono caricati a bootstrap da CloudEurekaClient.getAndStoreFullRegistry() [call verso http://localhost:8761/eureka/apps/]
+
+Quindi EurekaDiscoveryClient non fa una chiamata verso eureka server per trovare quante e  dove sono istanze "organizationservice".Usa il registry interno a DiscoveryClient.
+
+##########################   RestTemplate client [Ribbon-backed Spring RestTemplate]#######################
+http://localhost:8081/v1/organizations/442adb6e-fa58-47f3-9ca2-ed1fecdfe86c/licenses/38777179-7094-4200-9d61-edb101c6ea84/rest
+
+
+OrganizationRestTemplateClient usa :
+
+ @Autowired
+    RestTemplate restTemplate;
+    
+Tale bean e' definito in Application:
+
+  @LoadBalanced
+  @Bean
+  public RestTemplate getRestTemplate(){
+      return new RestTemplate();
+  }
+
+ATTENZIONE a @LoadBalanced!!
+Questa annotazione permette la risoluzione "organizationservice" =>  10.195.171.96:8080/v1/organizations grazie a LoadBalancerInterceptor [vedi sotto].
+    
+@EnableDiscoveryClient abilita Ribbon intercepton nelle istanze  RestTemplate managed da Spring!!
+Ergo la url dell organizzationservice e' automaticamente trovato!!Vedi di seguito per vedere come.
+
+Nota in OrganizationRestTemplateClient come la url e' inserita nel RestTemplate:
+
+ "http://organizationservice/v1/organizations/{organizationId}".La convenzione e' di inserire come hostNAme in serviceId cosi come e' registratoin eurekaserver.
+
+http://organizationservice/v1/organizations/{organizationId}" diventa a runtime    http://10.195.171.96:8080/v1/organizations/442adb6e-fa58-47f3-9ca2-ed1fecdfe86c
+    
+OrganizationRestTemplateClient.getOrganization("442adb6e-fa58-47f3-9ca2-ed1fecdfe86c")  => RestTemplate.exchange( "http://organizationservice/v1/organizations/{organizationId}")  =>  RestTemplate.doExecute("http://organizationservice/v1/organizations/442adb6e-fa58-47f3-9ca2-ed1fecdfe86c") => InterceptingClientHttpRequest.execute() =>  InterceptingClientHttpRequest.executeInternal() => InterceptingRequestExecution.execute() =>   this.iterator.hasNext() =>
+																																																																																																																			 MetricsClientHttpRequestInterceptor.intercept(request,execution)   
+																																																																																																																			 LoadBalancerInterceptor.intercept(request,execution)  
+																																																																																																																			                                                        => 
+																																																																																																																			                                                           String serviceName = originalUri.getHost();  [organizationservice]
+																																																																																																																			                                                           LoadBalancerRequest = LoadBalancerRequestFactory.createRequest(request,execution)  
+																																																																																																																			                                                           RibbonLoadBalancerClient.execute("organizationservice",LoadBalancerRequestFactory$LoadBalancerRequest)  => 
+																																																																																																																																								                                                            ZoneAwareLoadBalancer loadBalancer = getLoadBalancer(serviceId)
+																																																																																																																																								                                                           Server server = getServer(loadBalancer) [10.195.171.96:8080: qui finalmente viene scelta l instaza da invocare!!]
+																																																																																																																																								                                                           RibbonServer ribbonServer = new RibbonServer("organizationservice", server)		
+																																																																																																																																								                                                           RibbonLoadBalancerClient.execute("organizationservice", ribbonServer, request) =>  
+																																																																																																																																								                                                           																					 LoadBalancerRequestFactory$LoadBalancerRequest.apply(ribbonServer) =>   HttpRequest serviceRequest = new ServiceRequestWrapper(request, instance, loadBalancer) => InterceptingRequestExecution.execute(serviceRequest, body) 
+																																																																																																																																								                                                           																					 																																									                                                         => SimpleBufferingClientHttpRequest delegate =SimpleClientHttpRequestFactory.createrequest("http://10.195.171.96:8080/v1/organizations/442adb6e-fa58-47f3-9ca2-ed1fecdfe86c",GET)	=> HttpURLConnection connection = openConnection(uri.toURL(), this.proxy);
+																																																																																																																																								                                                           																					 																																																																																										   return new SimpleBufferingClientHttpRequest(connection, this.outputStreaming);
+																																																																																																																																								                                                           																					 																																																							    delegate.execute() => ClientHttpResponse result = SimpleBufferingClientHttpRequest.executeInternal() => HttpURLConnection connection = this.connection.connect()
+																																																																																																																																								                                                           																					 																																																							    																										connection.getResponseCode() => HttpURLConnection.getInputStream() => qui parte la request!!
+																																																																																																																																								                                                           																					 																																																							    																										return new SimpleClientHttpResponse(this.connection)
+																			
+																																																																																																																																								                                                           																					 
+																																																																																																																																								                                                           																					 
+##########################   Feign client #######################																																																																																																																																								                                                           																					 
+http://localhost:8081/v1/organizations/442adb6e-fa58-47f3-9ca2-ed1fecdfe86c/licenses/38777179-7094-4200-9d61-edb101c6ea84/feigns
+																																																																																																																																								                                                           																					 
+OrganizationFeignClient e' una interface e usa @FeignClient("organizationservice") dove il target service e' specificato.
+
+@FeignClient("organizationservice")
+public interface OrganizationFeignClient {
+    @RequestMapping(
+            method= RequestMethod.GET,
+            value="/v1/organizations/{organizationId}",
+            consumes="application/json")
+    Organization getOrganization(@PathVariable("organizationId") String organizationId);
+}
+
+Ha bisogno di @EnableFeignClients in Application !!
+
+
+In LicenseService: 
+
+    @Autowired
+    OrganizationFeignClient organizationFeignClient;
+    
+ a runtime usa interface annotata OrganizationFeignClient per generare il Ribbon backed proxy che connette a organizationservice.
  
+ Configurazione Feign Client a Bootstrap :
+ 
+ 
+ ConfigurationClassPostProcessor.processConfigBeanDefinitions(BeanFactory) => 
+ 																			  List<BeanDefinitionHolder> configCandidates 
+ 																			  String[] candidateNames = registry.getBeanDefinitionNames();
+ 																			  for(candidateNames){
+ 																			  BeanDefinition beanDef = registry.getBeanDefinition(beanName);
+ 																			  if(checkConfigurationClassCandidate(beanDef))  //true se beandef annotato @Configuration
+ 																			    configCandidates.add(Application.java)
+ 																			  }
+ 																			   
+ 																			  ConfigurationClassParser.parse(Application.java) => ConfigurationClassParser.processConfigurationClass(new ConfigurationClass(Application.metadata, "application")) => ConfigurationClassParser.doProcessConfigurationClass(Application.class)  =>   
+ 																			  
+																					 																			  																																											
+																					 																			  																																											Set<AnnotationAttributes> componentScans = AnnotationConfigUtils.attributesForRepeatable(Application.getMetadata(), ComponentScans.class, ComponentScan.class); //Cerca parent classes annotate ComponentScans
+																					 																			  																																											for (AnnotationAttributes componentScan : componentScans) {
+																					 																			  																																											  Set<BeanDefinitionHolder> scannedBeanDefinitions = ComponentScanAnnotationParser.parse(componentScan, Application.class); [organizationDiscoveryClient,ToolsController,LicenseService,DiscoveryService,OrganizationRestTemplateClient]
+																					 																			  																																											  for (BeanDefinitionHolder holder : scannedBeanDefinitions) {
+																					 																			  																																											     ConfigurationClassParser.parse(holder.getBeanDefinition().getBeanClassName(), holder.getBeanName())  => ConfigurationClassParser.configurationClasses.put(configClass) [ConfigurationClassParser.configurationClasses vengono aggiunti in organizationDiscoveryClient,ToolsController,LicenseService,DiscoveryService,OrganizationRestTemplateClient]
+																					 																			  																																											  }
+																					 																			  																																											}
+																					 																			  																																											
+																					 																			  																																											Imports = ConfigurationClassParser.getImports(Application.class)  [AutoConfigurationPackages$Registrar, EnableAutoConfigurationImportSelector, EnableDiscoveryClientImportSelector, FeignClientsRegistrar]
+																					 																			  																																										    ConfigurationClassParser.processImports(Imports) => ParserStrategyUtils.invokeAwareMethods() => FeignClientsRegistrar.setResourceLoader(AnnotationConfigEmbeddedWebApplicationContext)
+																					 																			  																																										    
+																					 																			  																																										    ConfigurationClassBeanDefinitionReader.loadBeanDefinitions(configClasses) =>  ... ConfigurationClassBeanDefinitionReader.loadBeanDefinitionsFromRegistrars(FeignClientsRegistrar,beanfactory) => FeignClientsRegistrar.registerDefaultConfiguration(ApplicationMetadata,beanfactory) => FeignClientsRegistrar.registerClientConfiguration(beanfactory,Application) => BeanDefinitionBuilder builder = BeanDefinitionBuilder.genericBeanDefinition(FeignClientSpecification.class);
+																					 																			  																					 ConfigurationClassParser.configurationClasses.put(Application.class);																																																					 																						beanfactory.registerBeanDefinition(FeignClientSpecification);
+																					 																			  																					 																																																																						 FeignClientsRegistrar.registerFeignClients(metadata, beanfactory) => ClassPathScanningCandidateComponentProvider scanner = getScanner();
+																					 																			  																					 																																																																						 																	  Set<BeanDefinition> candidateComponents = scanner.findCandidateComponents("com.thoughtmechanix.licenses") [trova OrganizationFeignClient!!]
+																					 																			  																					 																																																																						 																	  AnnotatedBeanDefinition beanDefinition = (AnnotatedBeanDefinition) candidateComponent;
+																					 																			  																					 																																																																						 																	  AnnotationMetadata annotationMetadata = beanDefinition.getMetadata();
+																					 																			  																					 																																																																						 																	  FeignClientsRegistrar.registerFeignClient(beanfactory, annotationMetadata) => una beanDefinition viene creata usando annotazioni OrganizationFeignClient.java e registrata in beanfactory cosi che organizationFeignClient sia risolto in LicenseService
+																					 																			  																					 																																																																						 																	  																				String className = annotationMetadata.getClassName(); ["com.thoughtmechanix.licenses.clients.OrganizationFeignClient"]
+																					 																			  																					 																																																																						 																	  																				BeanDefinitionBuilder definition = BeanDefinitionBuilder.genericBeanDefinition(FeignClientFactoryBean.class);
+																					 																			  																					 																																																																						 																	  																				definition.addPropertyValue("url", getUrl(attributes));
+																					 																			  																					 																																																																						 																	  																				definition.addPropertyValue("name", "organizationservice");
+																					 																			  																					 																																																																						 																	  																				definition.addPropertyValue("type", com.thoughtmechanix.licenses.clients.OrganizationFeignClient);
+																					 																			  																					 																																																																						 																	  																				BeanDefinitionHolder holder = new BeanDefinitionHolder(beanDefinition, com.thoughtmechanix.licenses.clients.OrganizationFeignClient)
+																					 																			  																					 																																																																						 																	  																				BeanDefinitionReaderUtils.registerBeanDefinition(holder, beanfactory); [OrganizationFeignClient viene registrato come Bean!!]
+																					 																			  																					 																																																																						 																	  																				
+																					 																			  																					 																																																																						 																	  																				
+Quando viene instanziato?
+
+###############   Instanziazione FeignClient :################
+
+DefaultListableBeanFactory.doResolveDependency(beanName=licenseService) => findAutowireCandidates(requiredType=OrganizationFeignClient) => addCandidateEntry(candidateName=OrganizationFeignClient) => DependencyDescriptor.resolveCandidate(beanName=com.thoughtmechanix.licenses.clients.OrganizationFeignClient) => DefaultListableBeanFactory.doGetBean(com.thoughtmechanix.licenses.clients.OrganizationFeignClient) => RootBeanDefinition mbd = getMergedLocalBeanDefinition(beanName)  [FeignClientFactoryBean]
+																																																																													   																										 FeignClientFactoryBean sharedInstance = getSingleton(beanName, new ObjectFactory<Object>() {...} 
+																																																																													   																										 bean = getObjectForBeanInstance(FeignClientFactoryBean, OrganizationFeignClient, OrganizationFeignClient, null)  => 	return object = doGetObjectFromFactoryBean(FeignClientFactoryBean, OrganizationFeignClient) => return  object = FeignClientFactoryBean.getObject() => 		FeignContext context = applicationContext.getBean(FeignContext.class);
+																																																																																																																																																																												Feign.Builder builder = feign(context);
+																																																																																																																																																																												HardCodedTarget hardCodedTarget =new HardCodedTarget<>(OrganizationFeignClient,organizationservice, "")
+																																																																																																																																																																												return loadBalance(builder, context,hardCodedTarget ) =>   LoadBalancerFeignClient client = getOptional(context, Client.class);
+																																																																																																																																																																																										   builder.client(client);
+																																																																																																																																																																																										   HystrixTargeter targeter = get(context, Targeter.class);
+																																																																																																																																																																																										   return targeter.target(FeignClientFactoryBean, feign.Feign$Builder, context, HardCodedTarget) => return feign.Feign$Builder.target(HardCodedTarget) =>  feign.Feign$Builder.build()  =>  SynchronousMethodHandler.Factory synchronousMethodHandlerFactory =
+																																																																																																																																																																																																																																							          new SynchronousMethodHandler.Factory(client, retryer, requestInterceptors, logger,
+																																																																																																																																																																																																																																							                                               logLevel, decode404);
+																																																																																																																																																																																																																																							        ParseHandlersByName handlersByName =
+																																																																																																																																																																																																																																							          new ParseHandlersByName(contract, options, encoder, decoder,
+																																																																																																																																																																																																																																							                                  errorDecoder, synchronousMethodHandlerFactory);
+																																																																																																																																																																																																																																							         return new ReflectiveFeign(handlersByName, invocationHandlerFactory);
+																																																																																																																																																																																																																																   return feign.ReflectiveFeign.newInstance(HardCodedTarget) => InvocationHandler handler = factory.create(HardCodedTarget, OrganizationFeignClient.getOrganization());
+																																																																																																																																																																																																																																   																T proxy = (T) Proxy.newProxyInstance(OrganizationFeignClient.getClassLoader(), new Class<?>[]{OrganizationFeignClient}, handler);
+																																																																																																																																																																																																																																   																
+																																																																																																																																																																																																																																   																Questo e' il proxy che viene iniettato in LicenseService!! 
+																																																																																																																																																																																																																																																																																																																																																																																																																																	   
+																																																																																																																																																																																																																																																							   
+###############   Invocazione FeignClient :################																																																																																																																																																																																																																																																							   
+Sopra si e' visto che FeignClient e' in realta' iniettato in licenseService come un proxy:
+
+T proxy = (T) Proxy.newProxyInstance(OrganizationFeignClient.getClassLoader(), new Class<?>[]{OrganizationFeignClient}, handler);
 
 
-
+LicenseService.retrieveOrgInfo("442adb6e-fa58-47f3-9ca2-ed1fecdfe86c","feign")  => con.sun.Proxy.getOrganization("442adb6e-fa58-47f3-9ca2-ed1fecdfe86c") => ReflectiveFeign$FeignInvocationHandler.invoke() => SynchronousMethodHandler.invoke("442adb6e-fa58-47f3-9ca2-ed1fecdfe86c")=>  feign.RequestTemplate template = buildTemplateFromArgs.create("442adb6e-fa58-47f3-9ca2-ed1fecdfe86c");
+																																																																						  SynchronousMethodHandler.executeAndDecode(template)	=>
+																																																																						   															 feign.Request request = targetRequest(template);
+																																																																						   															 feign.Response response = LoadBalancerFeignClient.execute(request, options) => URI asUri = URI.create(request.url()); [Ancora target host:port NON sono stati risolti!! http://organizationservice/v1/organizations/442adb6e-fa58-47f3-9ca2-ed1fecdfe86c]	
+																																																																						   															 																				URI uriWithoutHost = cleanUrl(request.url(), clientName);    [http:///v1/organizations/442adb6e-fa58-47f3-9ca2-ed1fecdfe86c]
+																																																																						   															 																				String clientName = asUri.getHost();
+																																																																						   															 																				FeignLoadBalancer.RibbonRequest ribbonRequest =new FeignLoadBalancer.RibbonRequest(this.delegate, request, uriWithoutHost);	
+																																																																						   															 																				IClientConfig requestConfig = getClientConfig(options, clientName);
+																																																																						  																																			FeignLoadBalancer lbClient= LoadBalancerFeignClient.lbClient(clientName);
+																																																																						  																																			AbstractLoadBalancerAwareClient.executeWithLoadBalancer(ribbonRequest,requestConfig) => RequestSpecificRetryHandler handler = getRequestSpecificRetryHandler(request, requestConfig);
+																																																																						  																																																									LoadBalancerCommand<T> command = LoadBalancerCommand.<T>builder()
+																																																																						  																																																																		.withLoadBalancerContext(this)
+																																																																						  																																																																		.withRetryHandler(handler)
+																																																																						  																																																																		.withLoadBalancerURI(request.getUri())
+																																																																						  																																																																		.build();
+																																																																						  																																																									 return command.submit(
+																																																																						  																																																									  new ServerOperation<T>() {
+																																																																						  																																																									      public Observable<T> call(Server server) {
+																																																																						  																																																									           URI finalUri = reconstructURIWithServer(server, request.getUri());   [Finalmente url risolta http://10.195.170.197:8080/v1/organizations/442adb6e-fa58-47f3-9ca2-ed1fecdfe86c]
+																																																																						  																																																									           S requestForServer = (S) request.replaceUri(finalUri);
+																																																																						  																																																									            try {
+																																																																						  																																																									                return  Observable.just(AbstractLoadBalancerAwareClient.this.execute(requestForServer, requestConfig))  => FeignLoadBalancer.execute(requestForServer, requestConfig)  => Response response = request.client().execute(request.toRequest(), options) => feign.Client.execute(request,options) => HttpURLConnection connection = convertAndSend(request, options);
+																																																																						  																																																									                																																																																								 return convertResponse(connection).toBuilder().request(request).build() =>   int status = connection.getResponseCode();  [Qui parte la connessione verso organization service!!!]
+																																																																						  																																																									                																																																																								 																			  String reason = connection.getResponseMessage();
+																																																																						  																																																									                																																																																								 																			   return Response.builder()
+																																																																						  																																																									                																																																																								 																			   .status(status)
+																																																																						  																																																									                																																																																								 																			   .reason(reason)
+																																																																						  																																																									                																																																																								 																			   .headers(headers)
+																																																																						  																																																									                																																																																								 																			   .body(stream, length)
+																																																																						  																																																									                																																																																								 																			   .build();
+																																																																						  																																																									               																																											 return new RibbonResponse(request.getUri(), response);
+																																																																						  																																																									                }
+																																																																						  																																																									             catch (Exception e) {return Observable.error(e);
+																																																																						  																																																									             })
+																																																																				  																																																									                  .toBlocking()
+																																																																				  																																																									                  .single();
+																																																																						  																response.toBuilder().request(request).build(); [trasforma la response in un oggetto com.thoughtmechanix.licenses.model.Organization]																																									  
+																																																																						  																																																									  
+																																																																						  																																																									  
+																																																																						  																																																									  
+																																																																						  																																																									  
+																																																																						  																																																									  
+																																																																						  																																																									  
+																																																																						  																																																									  
+																																																																						  																																																									  
+																																																																						  																																																									  
+																																																																						  																																																									  
+																																																																  																																			
+																																																																						  																																																													

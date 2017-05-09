@@ -4,8 +4,6 @@ eureka:
     leaseRenewalIntervalInSeconds: 110 #periodo tra una registrazione e l altra del client verso server
     
   client:
-    proxyHost: 127.0.0.1         #Utile per tracciare chiamate con Charles
-    proxyPort: 9999              #Utile per tracciare chiamate con Charles
     registerWithEureka: true     #Se il client deve registrare l app presso eureka server
     fetchRegistry: true          #Scarica localmente il registry da Eureka ogni 30 secs anziche' richiedere resolution ad ogni request ...
     registryFetchIntervalSeconds: 60                #ogni quanti secondi eureka client scarica il full registry da eureka server

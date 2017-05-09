@@ -1,0 +1,107 @@
+SpringApplication.java e' annotata @EnableDiscoveryClient
+
+Questo fara' eseguire EurekaClientAutoConfiguration a bootstrap e configurera'  EurekaDiscoveryClient come DiscoveryClient in OrganizationDiscoveryClient!!
+
+Vedi in OrganizationDiscoveryClient annotazione :
+    @Autowired
+    private DiscoveryClient discoveryClient;
+
+
+@EnableDiscoveryClient spinge Spring a usare le config classes: EurekaDiscoveryClientConfiguration,AutoServiceRegistrationConfiguration 
+Vedi  "Processamento @EnableDiscoveryClient"  sotto
+
+Questo serve in OrganizationDiscoveryClient.java che ha:
+
+private DiscoveryClient discoveryClient;
+    
+Questo viene risolto in LicenseService.java:
+
+    @Autowired
+    OrganizationDiscoveryClient organizationDiscoveryClient;
+    
+    il quale a sua volta:
+    
+    @Autowired
+    private DiscoveryClient discoveryClient;
+    
+ discoveryClient diventa  EurekaDiscoveryClient  a runtime grazie a EurekaDiscoveryClientConfiguration!!
+    
+    
+Senza @EnableDiscoveryClient , discoveryClient sarebbe istanza SimpleDiscoveryClient!!
+
+Servizio invocato con:
+
+http://localhost:8081/v1/organizations/organizationId/licenses/licenseId/discovery
+
+#####################   Processamento @EnableDiscoveryClient    ##################
+
+Effetti @EnableDiscoveryClient sul bootstrap: =>i beans definiti in EurekaDiscoveryClientConfiguration vengono processati!!
+
+
+DefaultListableBeanFactory.registerBeanDefinition("application",beanDefinition)   => mette application in registry
+
+																					registry e' DefaultListableBeanFactory contenente 'application' bd!!
+ConfigurationClassPostProcessor.processConfigBeanDefinitions(BeanDefinitionRegistry registry) => 
+																										BeanDefinition beanDef = registry.getBeanDefinition(beanName);
+																										ConfigurationClassUtils.checkConfigurationClassCandidate(beanDef, this.metadataReaderFactory)
+																										[e' config candidate perche annotata @SpringBootApplication => @SpringBootConfiguration => @Configuration]
+																										configCandidates.add(beanDef,"application")
+																										
+																										ConfigurationClassParser.parse(candidates) => ConfigurationClassParser.processConfigurationClass(new ConfigurationClass(metadata, "application")) => SourceClass sourceClass = asSourceClass(configClass);
+																																																															 sourceClass = doProcessConfigurationClass(Application.class, Application.class) =>    Imports = ConfigurationClassParser.getImports(Application.class)   => uno degli imports e' EnableDiscoveryClientImportSelector!!
+																																																															 																																							 Tutte le annotazioni vengono iterate in via gerarchica cercando per annotazioni @Import
+																																																															 																																							 Il patch per EnableDiscoveryClientImportSelector e': Application => @EnableDiscoveryClient => @EnableDiscoveryClientImportSelector
+																																																															 
+																																																															 
+																																																															 
+																																																															 																		               ConfigurationClassParser.processImports(Application.class, Application.class, Imports, true);	=> EnableDiscoveryClientImportSelector.isAssignable(ImportSelector.class) 		
+																																																															 																		               																									   ConfigurationClassParser.deferredImportSelectors.add(new DeferredImportSelectorHolder(Application.class, EnableDiscoveryClientImportSelector))	Qui EnableDiscoveryClientImportSelector e' aggiunto a ConfigurationClassParser.deferredImportSelectors!!
+																																																															 																		               																									   
+																																																															 																		               																									   
+																										ConfigurationClassParser.processDeferredImportSelectors() =>      ConfigurationClass configClass = deferredImport.getConfigurationClass() [ Application.class]
+																																										  EnableDiscoveryClientImportSelector selector = deferredImport.getImportSelector()
+																																										  String[] imports = selector.selectImports(Application.class.getMetadata())         =>  EnableDiscoveryClientImportSelector.super.selectImports(Application.class.metadata) => SpringFactoryImportSelector.selectImports(Application.class.metadata)    => Application.class.metadata.getAnnotationAttributes("EnableDiscoveryClient",true) => StandardAnnotationMetadata.getAnnotationAttributes("EnableDiscoveryClient",true) => AnnotatedElementUtils.getMergedAnnotationAttributes(Application.class, "EnableDiscoveryClient") = return {autoRegister=true}
+																																										  
+																																										  
+																																										  																																												List<String> factories = (SpringFactoriesLoader.loadFactoryNames(EnableDiscoveryClient.class, this.beanClassLoader) => Enumeration<URL> urls = URLClassLoader.getResources(META-INF/spring.factories)
+																																										  																																																																										while (urls.hasMoreElements()) {
+																																											  																																																																										Tutti i spring.factories carica props e cerca per prop EnableDiscoveryClient
+																																											  																																																																										Trova entry in spring-cloud-netflix-eureka-client-1.3.0.RELEASE.jar!/META-INF/spring.factories
+																																											  																																																																										org.springframework.cloud.client.discovery.EnableDiscoveryClient=org.springframework.cloud.netflix.eureka.EurekaDiscoveryClientConfiguration
+																																											  																																																																										return EurekaDiscoveryClientConfiguration
+																																										  																																																																										}
+																																																								 									imports = [org.springframework.cloud.netflix.eureka.EurekaDiscoveryClientConfiguration]
+																																																								 									Application.class.metadata.getAnnotationAttributes("EnableDiscoveryClient",true) [{autoRegister=true}]
+																																																								 									if(autoRegister=true)
+																																																																	imports.add("org.springframework.cloud.client.serviceregistry.AutoServiceRegistrationConfiguration");																						 																		               																									   																
+																																											imports = [EurekaDiscoveryClientConfiguration,AutoServiceRegistrationConfiguration]
+																																											ConfigurationClassParser.processImports(application.class,imports)	=> 		ConfigurationClassParser.processConfigurationClass(EurekaDiscoveryClientConfiguration)	=> ConfigurationClassParser.doProcessConfigurationClass(EurekaDiscoveryClientConfiguration)	 => processMemberClasses(EurekaDiscoveryClientConfiguration) => registra bean definiti in EurekaDiscoveryClientConfiguration : EurekaHealthCheckHandlerConfiguration,EurekaHealthIndicatorConfiguration,EurekaClientConfigurationRefresher,Marker
+																																																														ConfigurationClassParser.processConfigurationClass(AutoServiceRegistrationConfiguration) => ....AutoServiceRegistrationConfiguration non fa un cazzo...
+																																											
+In particolare in EurekaDiscoveryClientConfiguration   c'e':
+   @Bean
+	public Marker eurekaDiscoverClientMarker() {
+		return new Marker();
+	}
+
+	Quindi EurekaDiscoveryClientConfiguration.Marker e' definito quando annoto @EnableDiscoveryClient!!
+	
+Detto cio, EurekaClientAutoConfiguration e' annotata @ConditionalOnBean(EurekaDiscoveryClientConfiguration.Marker.class)!!
+
+Quindi quando annoto @EnableDiscoveryClient , EurekaClientAutoConfiguration viene processata incluso:
+
+	@Bean
+	public DiscoveryClient discoveryClient(EurekaInstanceConfig config,
+			EurekaClient client) {
+		return new EurekaDiscoveryClient(config, client);
+	}
+	
+che e' il bean passato in 	OrganizationDiscoveryClient!!
+Se non lo annoto, nessun bean definito in EurekaClientAutoConfiguration e' eseguito.
+
+
+																																			
+																																																									
+																																																										
+																																																										
+																																																										

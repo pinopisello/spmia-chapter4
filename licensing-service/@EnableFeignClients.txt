@@ -1,0 +1,6 @@
+SpringApplication.java e' annotata @EnableFeignClient
+
+
+
+
+
