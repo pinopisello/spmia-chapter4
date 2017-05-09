@@ -1,5 +1,6 @@
 SpringBoot service che si registra in EurekaServer a  http://localhost:8761/eureka/ come "licensingservice"
 Server aperto su porta 8081 dato che 8080 e'usata da organizationservice!!
+<<<<<<< 6029259c9c77d41db7eade3d152f3a04982d0092
 
 ToolsController espone: [http://localhost:8081/v1/tools/eureka/services]
 
@@ -14,8 +15,10 @@ Ritorna lista services correntemente nel registry fetchato da eureka server.
 
 
 LicenseServiceController espone :
+=======
+>>>>>>> update 9/5/17
 
-Espone :
+LicenseServiceController espone :
 
    @RequestMapping(value="/{licenseId}/{clientType}",method = RequestMethod.GET)
     public License getLicensesWithClient( @PathVariable("organizationId") String organizationId,
@@ -116,9 +119,15 @@ In LicenseService:
     OrganizationFeignClient organizationFeignClient;
     
  a runtime usa interface annotata OrganizationFeignClient per generare il Ribbon backed proxy che connette a organizationservice.
+<<<<<<< 6029259c9c77d41db7eade3d152f3a04982d0092
  
  Configurazione Feign Client a Bootstrap :
  
+=======
+ 
+ Configurazione Feign Client a Bootstrap :
+ 
+>>>>>>> update 9/5/17
  
  ConfigurationClassPostProcessor.processConfigBeanDefinitions(BeanFactory) => 
  																			  List<BeanDefinitionHolder> configCandidates 

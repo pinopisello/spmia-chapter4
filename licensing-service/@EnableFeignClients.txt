@@ -1,8 +1,11 @@
 SpringApplication.java e' annotata @EnableFeignClient
 
 
+<<<<<<< 6029259c9c77d41db7eade3d152f3a04982d0092
 Vedi sezione "Feign client" in Leggime.txt
 
+=======
+>>>>>>> update 9/5/17
 
 
 

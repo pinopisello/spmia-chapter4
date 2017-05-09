@@ -22,8 +22,8 @@ public class SpringAppContextConfig {
 	   
 	    
 	    EurekaJerseyClientBuilder clientBuilder = new EurekaJerseyClientBuilder()
-	    		//.withProxy("127.0.0.1", "9999", "", "")
 	    		.withProxy(clientConfig.getProxyHost(), clientConfig.getProxyPort(), "", "")
+	    		//.withProxy("127.0.0.1", "9999", "", "")
                 .withClientName("Proxy-DiscoveryClient-HTTPClient")
                 .withUserAgent("Pippo")
                 .withConnectionTimeout(clientConfig.getEurekaServerConnectTimeoutSeconds() * 1000 )

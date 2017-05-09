@@ -4,7 +4,7 @@ spring:
   datasource:
     initialize: false   #runna schema.sql ad ogni boostrap
   profiles:
-    active: prod       #seleziona quale pro file perscare dal config server
+    active: prod        #seleziona quale pro file perscare dal config server
   cloud:
     config:
       enabled: false              #vedi setProxy_configserver.txt   

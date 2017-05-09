@@ -64,11 +64,9 @@ DiscoveryClient prende la configurazione per eureka endpoints,network parameters
 
 Il codice ignora i proxyHost e proxyPort anche se sono iniettati in EurekaClientConfigBean.
 Per risolvere ho crato SpringConfig.java annotata @Configuration e creato un META-INF/spring.factories con una entry 
-<<<<<<< 7c80b4b73aa38eacc77a6cfcfecef9c199ec0365
 org.springframework.boot.autoconfigure.EnableAutoConfiguration = SpringAppContextConfig in modo da generare EurekaJerseyClient con proxy settati correttamente.
-=======
-org.springframework.boot.autoconfigure.EnableAutoConfiguration = SpringConfig in modo da generare EurekaJerseyClient con proxy settati correttamente.
->>>>>>> update 1/5/17
+
+
 
 La prima request verso il configserver e' GET http://localhost:8761/eureka/apps/ : DiscoveryClient.fetchRegistry
 
@@ -85,11 +83,8 @@ dopodiche  3 ThreadPoolExecutors vengono inizializzati per polling [initSchedule
 		
 
 ###################				Invocazione servizio						#####################
-<<<<<<< 7c80b4b73aa38eacc77a6cfcfecef9c199ec0365
 [http://localhost:8080/v1/organizations/e254f8c-c442-4ebe-a82a-e2fc1d1ff78a]
-=======
-[http://localhost:8080/v1/organizations/e254f8c-c442-4ebe-a82a-e2fc1d1ff78as]
->>>>>>> update 1/5/17
+
 
 
 Viene invocato OrganizationServiceController.Nulla di particolare.
