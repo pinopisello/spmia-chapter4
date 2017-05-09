@@ -4,11 +4,12 @@ spring:
   datasource:
     initialize: false   #runna schema.sql ad ogni boostrap 
   profiles:
-    active:
-      prod
+    active: prod        #seleziona quale pro file perscare dal config server
   cloud:
     config:
-      enabled: true
+      enabled: false
 #      discovery:
 #        enabled: true
 #        serviceId: configserver
+server:
+  port: 8081

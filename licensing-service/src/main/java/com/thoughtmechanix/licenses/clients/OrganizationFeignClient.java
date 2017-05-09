@@ -7,11 +7,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
-@FeignClient("organizationservice")
+@FeignClient("organizationservice")							 //target serviceid  da risolvere in eurekaserver [risolve ip e porta]
 public interface OrganizationFeignClient {
     @RequestMapping(
-            method= RequestMethod.GET,
-            value="/v1/organizations/{organizationId}",
-            consumes="application/json")
-    Organization getOrganization(@PathVariable("organizationId") String organizationId);
+            method= RequestMethod.GET, 						 //http metodo da usare
+            value="/v1/organizations/{organizationId}",      //path da invocare verso  organizationservice
+            consumes="application/json")                     //http accept header da inviare 
+    Organization getOrganization(@PathVariable("organizationId") String organizationId);//setta il {organizationId} in value
 }
