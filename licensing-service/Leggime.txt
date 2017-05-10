@@ -1,6 +1,18 @@
 SpringBoot service che si registra in EurekaServer a  http://localhost:8761/eureka/ come "licensingservice"
 Server aperto su porta 8081 dato che 8080 e'usata da organizationservice!!
 
+ToolsController espone: [http://localhost:8081/v1/tools/eureka/services]
+
+@RequestMapping(value="v1/tools")
+@RequestMapping(value="/eureka/services",method = RequestMethod.GET)
+    public List<String> getEurekaServices() {
+
+        return discoveryService.getEurekaServices();
+        }
+        
+Ritorna lista services correntemente nel registry fetchato da eureka server.        
+
+
 LicenseServiceController espone :
 
    @RequestMapping(value="/{licenseId}/{clientType}",method = RequestMethod.GET)
