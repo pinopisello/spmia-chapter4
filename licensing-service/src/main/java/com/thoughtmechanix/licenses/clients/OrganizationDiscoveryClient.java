@@ -23,6 +23,7 @@ public class OrganizationDiscoveryClient {
         List<ServiceInstance> instances = discoveryClient.getInstances("organizationservice");
 
         if (instances.size()==0) return null;
+        //Prendo la prima, quindi il load balancing me lo devo implementare io se mi serce!!
         String serviceUri = String.format("%s/v1/organizations/%s",instances.get(0).getUri().toString(), organizationId);
         System.out.println("!!!! SERVICE URI:  " + serviceUri);
 
