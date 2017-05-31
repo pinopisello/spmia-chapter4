@@ -1,6 +1,8 @@
 SpringApplication.java e' annotata @EnableFeignClient
 
 
+Vedi sezione "Feign client" in Leggime.txt
+
 
 
 
