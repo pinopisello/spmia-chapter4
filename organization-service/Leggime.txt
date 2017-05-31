@@ -66,8 +66,6 @@ Il codice ignora i proxyHost e proxyPort anche se sono iniettati in EurekaClient
 Per risolvere ho crato SpringConfig.java annotata @Configuration e creato un META-INF/spring.factories con una entry 
 org.springframework.boot.autoconfigure.EnableAutoConfiguration = SpringAppContextConfig in modo da generare EurekaJerseyClient con proxy settati correttamente.
 
-
-
 La prima request verso il configserver e' GET http://localhost:8761/eureka/apps/ : DiscoveryClient.fetchRegistry
 
 
@@ -84,7 +82,6 @@ dopodiche  3 ThreadPoolExecutors vengono inizializzati per polling [initSchedule
 
 ###################				Invocazione servizio						#####################
 [http://localhost:8080/v1/organizations/e254f8c-c442-4ebe-a82a-e2fc1d1ff78a]
-
 
 
 Viene invocato OrganizationServiceController.Nulla di particolare.
